@@ -9,6 +9,9 @@ import { LocationMapCard } from "./components/LocationMapCard.tsx";
 import { ApprovalCard } from "./components/ApprovalCard.tsx";
 import { SiteDetailModal } from "./components/SiteDetailModal.tsx";
 import { TicketModal } from "./components/TicketModal.tsx";
+import { SitesView } from "./components/SitesView.tsx";
+import { TicketsView } from "./components/TicketsView.tsx";
+import { ReportsView } from "./components/ReportsView.tsx";
 import {
   Calendar,
   ChevronDown,
@@ -16,20 +19,23 @@ import {
   RefreshCw,
   FastForward,
   AlertCircle,
+  ShieldCheck,
+  Zap,
 } from "lucide-react";
 
 export const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [simDate, setSimDate] = useState<string>("2026-10-26");
   const [sites, setSites] = useState<SiteSummary[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [selectedSite, setSelectedSite] = useState<SiteDetail | null>(null);
   const [hudaDetail, setHudaDetail] = useState<SiteDetail | null>(null);
+  const [selectedSite, setSelectedSite] = useState<SiteDetail | null>(null);
   const [activeTicket, setActiveTicket] = useState<Ticket | null>(null);
   const [activeTab, setActiveTab] = useState<string>("ringkasan");
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [simDate, setSimDate] = useState<string>("2026-10-26");
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Initialize and authenticate demo session
   const initAuth = async (email = "rina@saura.id") => {
     try {
       setIsLoading(true);
@@ -38,7 +44,7 @@ export const App: React.FC = () => {
       setCurrentUser(res.user);
       await loadDashboardData();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Gagal inisialisasi sesi";
+      const msg = err instanceof Error ? err.message : "Gagal mengautentikasi pengguna";
       setError(msg);
     } finally {
       setIsLoading(false);
@@ -50,21 +56,18 @@ export const App: React.FC = () => {
       const [sitesData, ticketsData, simStatus] = await Promise.all([
         api.listSites(),
         api.listTickets(),
-        api.getSimStatus(),
+        api.getSimStatus().catch(() => ({ current_date: "2026-10-26", cutoff_passed: false })),
       ]);
+
       setSites(sitesData);
       setTickets(ticketsData);
-      setSimDate(simStatus.current_date);
+      setSimDate(simStatus.current_date || "2026-10-26");
 
-      // Fetch MA Nurul Huda detail for the featured line chart
-      const hudaSite = sitesData.find((s) => s.name.includes("Nurul Huda"));
-      if (hudaSite) {
-        try {
-          const detail = await api.getSite(hudaSite.id);
-          setHudaDetail(detail);
-        } catch {
-          // Fallback to null; chart component has built-in benchmark defaults
-        }
+      // Load MA Nurul Huda telemetry for the line chart
+      const huda = sitesData.find((s) => s.name.includes("Nurul Huda")) || sitesData[0];
+      if (huda) {
+        const detail = await api.getSite(huda.id);
+        setHudaDetail(detail);
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Gagal memuat data dashboard";
@@ -83,11 +86,14 @@ export const App: React.FC = () => {
 
   const handleSelectSite = async (siteId: string) => {
     try {
+      setIsLoading(true);
       const detail = await api.getSite(siteId);
       setSelectedSite(detail);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Gagal membuka rincian situs";
+      const msg = err instanceof Error ? err.message : "Gagal memuat rincian situs";
       alert(msg);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -96,6 +102,7 @@ export const App: React.FC = () => {
       setIsLoading(true);
       await api.approveTicket(ticketId);
       await loadDashboardData();
+      setActiveTicket(null);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Gagal menyetujui tiket";
       alert(msg);
@@ -109,6 +116,7 @@ export const App: React.FC = () => {
       setIsLoading(true);
       await api.postponeTicket(ticketId, note);
       await loadDashboardData();
+      setActiveTicket(null);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Gagal menunda tiket";
       alert(msg);
@@ -122,8 +130,9 @@ export const App: React.FC = () => {
       setIsLoading(true);
       await api.markTicketDone(ticketId, note);
       await loadDashboardData();
+      setActiveTicket(null);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Gagal menyelesaikan tiket";
+      const msg = err instanceof Error ? err.message : "Gagal mencatat penyelesaian tiket";
       alert(msg);
     } finally {
       setIsLoading(false);
@@ -185,6 +194,39 @@ export const App: React.FC = () => {
     return dateStr;
   };
 
+  const getHeaderInfo = () => {
+    switch (activeTab) {
+      case "lokasi":
+        return {
+          title: "Lokasi PLTS Terdaftar",
+          subtitle: "Daftar instalasi pembangkit surya, konfigurasi teknis, dan audit telemetri.",
+        };
+      case "tiket":
+        return {
+          title: "Tiket Pemeliharaan & Operasi",
+          subtitle: "Persetujuan biaya kunjungan teknisi, jadwal penugasan lapangan, dan transparansi O&M.",
+        };
+      case "laporan":
+        return {
+          title: "Laporan Mingguan & Audit Finansial",
+          subtitle: "Evaluasi mingguan produksi kWh terhadap iradiasi cuaca historis dan kehilangan pendapatan.",
+        };
+      case "pengaturan":
+        return {
+          title: "Pengaturan Sistem & Simulasi",
+          subtitle: "Parameter operasional, jam simulasi, dan integrasi bot pemantauan.",
+        };
+      case "ringkasan":
+      default:
+        return {
+          title: "Ringkasan lokasi",
+          subtitle: "Prioritaskan lokasi yang perlu bantuan.",
+        };
+    }
+  };
+
+  const headerInfo = getHeaderInfo();
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-800 flex font-sans antialiased">
       {/* 1. Left Sidebar Navigation */}
@@ -204,14 +246,14 @@ export const App: React.FC = () => {
             <div>
               <div className="flex items-center gap-3">
                 <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-                  Ringkasan lokasi
+                  {headerInfo.title}
                 </h1>
                 <span className="bg-blue-50 text-blue-600 border border-blue-200/80 text-xs font-semibold px-2.5 py-0.5 rounded-full select-none">
                   Data simulasi
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-1 font-medium">
-                Prioritaskan lokasi yang perlu bantuan.
+                {headerInfo.subtitle}
               </p>
             </div>
 
@@ -224,7 +266,7 @@ export const App: React.FC = () => {
                   onClick={handleAdvanceTo30}
                   disabled={isLoading}
                   title="Majukan waktu simulasi ke 30 Okt (3 hari pemulihan)"
-                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
                 >
                   <FastForward className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline">Majukan 30 Okt</span>
@@ -235,7 +277,7 @@ export const App: React.FC = () => {
                   onClick={handleResetSim}
                   disabled={isLoading}
                   title="Reset simulasi ke 26 Okt"
-                  className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-colors disabled:opacity-50"
+                  className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
                 </button>
@@ -252,7 +294,7 @@ export const App: React.FC = () => {
               <button
                 type="button"
                 onClick={() => alert("Fitur Impor CSV: unggah berkas telemetri harian untuk analisis offline.")}
-                className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-semibold px-3.5 py-2 rounded-xl text-xs shadow-2xs flex items-center gap-2 transition"
+                className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-semibold px-3.5 py-2 rounded-xl text-xs shadow-2xs flex items-center gap-2 transition cursor-pointer"
               >
                 <Upload className="h-3.5 w-3.5 text-slate-500" />
                 <span>Impor CSV</span>
@@ -272,50 +314,131 @@ export const App: React.FC = () => {
               </div>
               <button
                 onClick={() => initAuth(currentUser?.email || "rina@saura.id")}
-                className="underline font-semibold hover:text-red-900"
+                className="underline font-semibold hover:text-red-900 cursor-pointer"
               >
                 Coba lagi
               </button>
             </div>
           )}
 
-          {/* 3. Top 4 KPI Status Cards */}
-          <KpiCards sites={sites} />
+          {/* Tab 1: Ringkasan Lokasi (Home Mockup View) */}
+          {activeTab === "ringkasan" && (
+            <div className="space-y-6">
+              {/* 3. Top 4 KPI Status Cards */}
+              <KpiCards sites={sites} />
 
-          {/* 4. Priority Table Card */}
-          <PriorityTable
-            sites={sites}
-            tickets={tickets}
-            onSelectSite={handleSelectSite}
-            onOpenApprovalModal={handleOpenApprovalModal}
-          />
-
-          {/* 5. Bottom Split Section (Chart on Left, Map & Approval on Right) */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-            {/* Left: MA Nurul Huda 7-Day Performance Line Chart */}
-            <div className="lg:col-span-7 flex flex-col">
-              <TelemetryChartCard
-                siteDetail={hudaDetail}
-                onOpenDetailModal={() => {
-                  const huda = sites.find((s) => s.name.includes("Nurul Huda"));
-                  if (huda) handleSelectSite(huda.id);
-                }}
-              />
-            </div>
-
-            {/* Right: Sebaran Lokasi & Persetujuan Menunggu */}
-            <div className="lg:col-span-5 flex flex-col gap-4 justify-between">
-              <LocationMapCard
+              {/* 4. Priority Table Card */}
+              <PriorityTable
                 sites={sites}
-                onSelectSite={handleSelectSite}
-              />
-              <ApprovalCard
                 tickets={tickets}
-                currentUser={currentUser}
+                onSelectSite={handleSelectSite}
                 onOpenApprovalModal={handleOpenApprovalModal}
               />
+
+              {/* 5. Bottom Split Section (Chart on Left, Map & Approval on Right) */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+                {/* Left: MA Nurul Huda 7-Day Performance Line Chart */}
+                <div className="lg:col-span-7 flex flex-col">
+                  <TelemetryChartCard
+                    siteDetail={hudaDetail}
+                    onOpenDetailModal={() => {
+                      const huda = sites.find((s) => s.name.includes("Nurul Huda"));
+                      if (huda) handleSelectSite(huda.id);
+                    }}
+                  />
+                </div>
+
+                {/* Right: Sebaran Lokasi & Persetujuan Menunggu */}
+                <div className="lg:col-span-5 flex flex-col gap-4 justify-between">
+                  <LocationMapCard
+                    sites={sites}
+                    onSelectSite={handleSelectSite}
+                  />
+                  <ApprovalCard
+                    tickets={tickets}
+                    currentUser={currentUser}
+                    onOpenApprovalModal={handleOpenApprovalModal}
+                  />
+                </div>
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* Tab 2: Lokasi PLTS */}
+          {activeTab === "lokasi" && (
+            <SitesView
+              sites={sites}
+              onSelectSite={handleSelectSite}
+              onDownloadReport={api.downloadWeeklyReport}
+            />
+          )}
+
+          {/* Tab 3: Tiket */}
+          {activeTab === "tiket" && (
+            <TicketsView
+              tickets={tickets}
+              currentUser={currentUser}
+              sites={sites}
+              onSelectTicket={setActiveTicket}
+              onRefreshTickets={loadDashboardData}
+            />
+          )}
+
+          {/* Tab 4: Laporan */}
+          {activeTab === "laporan" && (
+            <ReportsView onDownloadReport={api.downloadWeeklyReport} />
+          )}
+
+          {/* Tab 5: Pengaturan */}
+          {activeTab === "pengaturan" && (
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-xs max-w-2xl space-y-6">
+              <div className="border-b border-slate-100 pb-4">
+                <h3 className="text-base font-bold text-slate-900">Pengaturan Sistem & Operasional</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Konfigurasi akun, baseline kalkulasi, dan sinkronisasi bot.</p>
+              </div>
+
+              <div className="space-y-4 text-xs">
+                <div className="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <ShieldCheck className="h-5 w-5 text-blue-600" />
+                    <div>
+                      <p className="font-bold text-slate-800">Akun Pengguna Aktif</p>
+                      <p className="text-slate-400">{currentUser?.name} ({currentUser?.email}) • Role: {currentUser?.role}</p>
+                    </div>
+                  </div>
+                  <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 font-semibold rounded-lg border border-emerald-200">
+                    Terautentikasi JWT
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <Zap className="h-5 w-5 text-amber-500" />
+                    <div>
+                      <p className="font-bold text-slate-800">Tarif Listrik Dasar</p>
+                      <p className="text-slate-400">Digunakan untuk menghitung estimasi kerugian finansial per kWh</p>
+                    </div>
+                  </div>
+                  <span className="font-mono font-bold text-slate-800">
+                    Rp1.500 / kWh
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <Calendar className="h-5 w-5 text-slate-500" />
+                    <div>
+                      <p className="font-bold text-slate-800">Jam Simulasi Sistem (Sim Clock)</p>
+                      <p className="text-slate-400">Tanggal evaluasi data telemetri saat ini</p>
+                    </div>
+                  </div>
+                  <span className="font-mono font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
+                    {simDate}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
         </main>
       </div>
 

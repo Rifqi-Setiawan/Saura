@@ -147,3 +147,39 @@ def download_weekly_csv(
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.get("/overview")
+def get_reports_overview(
+    current_user: Annotated[AppUser, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+    end_date: str | None = Query(None),
+) -> list[dict[str, Any]]:
+    query = db.query(Site)
+    if current_user.role == "manager":
+        query = query.filter(Site.manager_id == current_user.id)
+    elif current_user.role == "technician":
+        query = query.filter(Site.technician_id == current_user.id)
+    sites = query.order_by(Site.name.asc()).all()
+
+    results = []
+    for s in sites:
+        try:
+            site, totals, days_data, period_str = get_site_and_weekly_data(
+                s.id, end_date, current_user, db
+            )
+            results.append(
+                {
+                    "site_id": site.id,
+                    "site_name": site.name,
+                    "city": site.city,
+                    "province": site.province,
+                    "kwp": site.kwp,
+                    "period": period_str,
+                    "totals": totals,
+                    "days": days_data,
+                }
+            )
+        except Exception:
+            continue
+    return results

@@ -116,6 +116,25 @@ export const api = {
     return request<WeeklyReport>(`/reports/weekly/${siteId}${q}`);
   },
 
+  async getReportsOverview(endDate?: string): Promise<WeeklyReport[]> {
+    const q = endDate ? `?end_date=${endDate}` : "";
+    return request<WeeklyReport[]>(`/reports/overview${q}`);
+  },
+
+  async createTicket(data: {
+    site_id: string;
+    reason: string;
+    cause?: string;
+    priority?: string;
+    estimated_cost_idr?: number;
+    note?: string;
+  }): Promise<{ status: string; id: string; code: string; message: string }> {
+    return request("/tickets", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
   async downloadWeeklyReport(siteId: string, format: "pdf" | "csv"): Promise<void> {
     const response = await requestResponse(`/reports/weekly/${encodeURIComponent(siteId)}/${format}`);
     const blob = await response.blob();

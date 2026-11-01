@@ -24,6 +24,16 @@ class CostUpdateRequest(BaseModel):
     note: str | None = None
 
 
+class CreateTicketRequest(BaseModel):
+    site_id: str
+    reason: str
+    cause: str | None = None
+    priority: str = "normal"
+    estimated_cost_idr: int = Field(default=150000, ge=0)
+    technician_id: str | None = None
+    note: str | None = None
+
+
 def get_authorized_ticket(db: Session, ticket_id: str, user: AppUser) -> Ticket:
     ticket = db.get(Ticket, ticket_id)
     if ticket is None:
@@ -264,4 +274,56 @@ def update_ticket_cost(
         "status": "success",
         "estimated_cost_idr": ticket.estimated_cost_idr,
         "message": "Biaya berhasil diperbarui",
+    }
+
+
+@router.post("")
+def create_ticket(
+    req: CreateTicketRequest,
+    current_user: Annotated[AppUser, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict[str, Any]:
+    site = db.get(Site, req.site_id)
+    if not site:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Situs tidak ditemukan")
+    if current_user.role == "manager" and site.manager_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Akses situs ditolak")
+
+    last_ticket = db.query(Ticket).order_by(Ticket.created_at.desc()).first()
+    next_num = 25
+    if last_ticket and last_ticket.code.startswith("SA-"):
+        try:
+            next_num = int(last_ticket.code.split("-")[1]) + 1
+        except ValueError:
+            next_num = 25
+    code = f"SA-{next_num:03d}"
+
+    technician_id = req.technician_id or site.technician_id
+    new_ticket = Ticket(
+        code=code,
+        site_id=site.id,
+        status="AWAITING_APPROVAL",
+        priority=req.priority,
+        reason=req.reason,
+        cause=req.cause or "Inspeksi berkala / anomali terdeteksi",
+        technician_id=technician_id,
+        estimated_cost_idr=req.estimated_cost_idr,
+    )
+    db.add(new_ticket)
+    db.flush()
+
+    event = TicketEvent(
+        ticket_id=new_ticket.id,
+        type="created",
+        actor_user_id=current_user.id,
+        note=req.note or f"Tiket manual dibuat oleh {current_user.name}",
+    )
+    db.add(event)
+    db.commit()
+
+    return {
+        "status": "success",
+        "id": new_ticket.id,
+        "code": new_ticket.code,
+        "message": f"Tiket {new_ticket.code} berhasil dibuat",
     }
