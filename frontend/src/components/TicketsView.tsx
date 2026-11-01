@@ -101,16 +101,6 @@ export const TicketsView: React.FC<TicketsViewProps> = ({
     }
   };
 
-  const handleQuickDone = async (ticketId: string) => {
-    try {
-      await api.markTicketDone(ticketId, "Pekerjaan teknisi selesai diverifikasi di lapangan.");
-      await onRefreshTickets();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Gagal menyelesaikan tiket";
-      alert(msg);
-    }
-  };
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -302,7 +292,7 @@ export const TicketsView: React.FC<TicketsViewProps> = ({
                   <div className="flex items-center gap-4 text-xs text-slate-500 pt-1 flex-wrap">
                     <div className="flex items-center gap-1.5">
                       <UserCheck className="h-3.5 w-3.5 text-slate-400" />
-                      <span>Teknisi: <strong className="text-slate-700">{ticket.technician_name || "Belum ditugaskan"}</strong></span>
+                      <span>Pelaporan Lapangan: <strong className="text-slate-700">Mobile / Telegram Bot</strong></span>
                     </div>
 
                     <div className="flex items-center gap-1.5">
@@ -320,15 +310,6 @@ export const TicketsView: React.FC<TicketsViewProps> = ({
                       className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold transition cursor-pointer shadow-2xs"
                     >
                       Setujui Kunjungan
-                    </button>
-                  )}
-
-                  {currentUser?.role === "technician" && isScheduled && (
-                    <button
-                      onClick={() => handleQuickDone(ticket.id)}
-                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition cursor-pointer shadow-2xs"
-                    >
-                      Catat Selesai
                     </button>
                   )}
 

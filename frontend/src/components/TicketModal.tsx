@@ -8,7 +8,7 @@ interface TicketModalProps {
   onClose: () => void;
   onApprove: (ticketId: string) => Promise<void>;
   onPostpone: (ticketId: string, note: string) => Promise<void>;
-  onMarkDone: (ticketId: string, note: string) => Promise<void>;
+  onMarkDone?: (ticketId: string, note: string) => Promise<void>;
   isLoading: boolean;
 }
 
@@ -18,10 +18,8 @@ export const TicketModal: React.FC<TicketModalProps> = ({
   onClose,
   onApprove,
   onPostpone,
-  onMarkDone,
   isLoading,
 }) => {
-  const [techNote, setTechNote] = useState("Pemeriksaan string inverter selesai, konektor MC4 diganti, dan inverter beroperasi normal.");
   const [postponeNote, setPostponeNote] = useState("");
   const [isPostponing, setIsPostponing] = useState(false);
 
@@ -32,7 +30,6 @@ export const TicketModal: React.FC<TicketModalProps> = ({
     : "Rp150.000";
 
   const isManager = currentUser?.role === "manager" || currentUser?.role === "admin";
-  const isTechnician = currentUser?.role === "technician" || currentUser?.role === "admin";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-200">
@@ -154,30 +151,16 @@ export const TicketModal: React.FC<TicketModalProps> = ({
             </div>
           )}
 
-          {/* Technician Action Form */}
-          {(ticket.status === "SCHEDULED" || ticket.status === "AWAITING_APPROVAL") && isTechnician && (
-            <div className="space-y-3 pt-2 border-t border-slate-100">
-              <label className="text-xs font-semibold text-slate-600 block">
-                Catatan Hasil Pekerjaan Lapangan:
-              </label>
-              <textarea
-                rows={2}
-                value={techNote}
-                onChange={(e) => setTechNote(e.target.value)}
-                className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:outline-blue-500 text-slate-800"
-              />
-              <button
-                type="button"
-                disabled={isLoading}
-                onClick={async () => {
-                  await onMarkDone(ticket.id, techNote);
-                  onClose();
-                }}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-4 rounded-xl text-xs transition shadow-2xs flex items-center justify-center gap-1.5 disabled:opacity-50"
-              >
-                <CheckCircle2 className="h-4 w-4" />
-                <span>Catat Pekerjaan Selesai (Mulai Pemantauan 3 Hari)</span>
-              </button>
+          {/* Scheduled Field Callout */}
+          {ticket.status === "SCHEDULED" && (
+            <div className="p-3.5 bg-blue-50 rounded-xl border border-blue-100 text-xs text-blue-900 flex items-start gap-2.5">
+              <Clock className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-blue-950">Kunjungan Lapangan Terjadwal</p>
+                <p className="text-blue-700/90 mt-0.5 leading-relaxed">
+                  Laporan hasil pemeriksaan, penggantian komponen, dan dokumentasi foto dikirimkan langsung oleh teknisi di lapangan melalui ponsel / bot Telegram.
+                </p>
+              </div>
             </div>
           )}
 
