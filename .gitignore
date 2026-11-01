@@ -1,0 +1,50 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# Virtual environments
+.venv
+.venv/
+venv/
+env/
+
+# Node / Frontend
+node_modules
+node_modules/
+dist
+dist/
+.next/
+*.log
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Databases and local storage
+*.db
+*.sqlite
+*.sqlite3
+data/
+.qa-*/
+.verify-*/
+
+# Operating System files
+.DS_Store
+Thumbs.db
+
+# Test caches
+.pytest_cache/
+.ruff_cache/
+coverage/
+
+# Internal orchestration artifacts
+AGENTS.md
+PROGRESS.md
+evidence/
